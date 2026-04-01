@@ -21,7 +21,7 @@ from src.train_model import (
 st.set_page_config(page_title="India Climate Forecast", layout="wide")
 
 
-def make_forecast_features(history: pd.DataFrame, future_date: pd.Timestamp) -> dict:
+def build_feature_row(history: pd.DataFrame, future_date: pd.Timestamp) -> dict:
     ordered = history.sort_values("Date").reset_index(drop=True)
     return {
         "City": ordered.iloc[-1]["City"],
@@ -45,7 +45,7 @@ def make_forecast_features(history: pd.DataFrame, future_date: pd.Timestamp) -> 
 
 
 @st.cache_resource
-def load_app_resources():
+def load_dashboard_data():
     ensure_artifacts()
     dataset = load_dataset(DATA_PATH)
     metrics = json.loads(METRICS_PATH.read_text(encoding="utf-8"))
@@ -70,7 +70,7 @@ def forecast_city(model, history: pd.DataFrame, horizon: int) -> pd.DataFrame:
 
     for _ in range(horizon):
         next_date = working["Date"].max() + pd.Timedelta(days=1)
-        feature_row = make_forecast_features(working, next_date)
+        feature_row = build_feature_row(working, next_date)
         feature_frame = pd.DataFrame([feature_row])
         predicted_temp = float(model.predict(feature_frame)[0])
 
@@ -104,7 +104,7 @@ def draw_residual_chart(predictions: pd.DataFrame):
 
 
 def main():
-    resources = load_app_resources()
+    resources = load_dashboard_data()
     dataset = resources["dataset"]
     metrics = resources["metrics"]
     model = resources["model"]
@@ -113,8 +113,7 @@ def main():
 
     st.title("India Climate Forecast Dashboard")
     st.write(
-        "This app uses a recent Indian climate dataset to analyze weather patterns and forecast "
-        "future average temperature for a selected city."
+        "A city-wise climate dashboard built on recent Indian weather and air-quality data."
     )
     st.link_button("Open Kaggle Dataset", KAGGLE_DATASET_URL)
 
@@ -126,17 +125,16 @@ def main():
     st.caption(f'Dataset range: {metrics["date_start"]} to {metrics["date_end"]}')
 
     cities = sorted(dataset["City"].dropna().unique().tolist())
-    default_city = cities[0] if cities else ""
     selected_city = st.selectbox("Select a city", cities, index=0 if cities else None)
 
     city_data = dataset[dataset["City"] == selected_city].sort_values("Date")
     city_history = recent_history[recent_history["City"] == selected_city].sort_values("Date")
 
-    tab1, tab2, tab3 = st.tabs(["Forecast", "Climate Visuals", "Model Review"])
+    tab1, tab2, tab3 = st.tabs(["Forecast", "Climate Trends", "Model Snapshot"])
 
     with tab1:
         st.subheader(f"Forecast for {selected_city}")
-        horizon = st.slider("Forecast next days", 3, 30, 7, 1)
+        horizon = st.slider("Forecast days", 3, 30, 7, 1)
         if st.button("Generate Forecast", use_container_width=True):
             forecast_df = forecast_city(model, city_history, horizon)
             combined = pd.concat(
@@ -149,10 +147,10 @@ def main():
             st.dataframe(forecast_df, use_container_width=True)
             st.line_chart(combined, x="Date", y="Temperature_Avg_C", color="series")
         else:
-            st.caption("Choose a city and forecast horizon, then click Generate Forecast.")
+            st.caption("Forecast appears here after you pick a city and horizon.")
 
     with tab2:
-        st.subheader("Climate visuals")
+        st.subheader("Climate trends")
         left, right = st.columns(2)
         with left:
             st.write("Average temperature over time")
@@ -174,11 +172,11 @@ def main():
             .groupby("Month", as_index=False)[["Temperature_Avg_C", "Rainfall_mm", "AQI"]]
             .mean()
         )
-        st.write("Monthly averages")
+        st.write("Recent monthly averages")
         st.dataframe(monthly_summary.tail(12), use_container_width=True)
 
     with tab3:
-        st.subheader("Model review")
+        st.subheader("Model snapshot")
         metric_table = pd.DataFrame(
             {
                 "Metric": ["Train R2", "Test R2", "MAE", "RMSE", "Train Rows", "Test Rows"],
