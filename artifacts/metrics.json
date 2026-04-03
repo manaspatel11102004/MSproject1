@@ -10,5 +10,7 @@
   "train_r2": 0.4413,
   "test_r2": -0.017,
   "mae": 5.2405,
-  "rmse": 6.1056
+  "rmse": 6.1056,
+  "baseline_mae": 7.02,
+  "baseline_rmse": 8.6516
 }

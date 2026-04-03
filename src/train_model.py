@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import joblib
@@ -11,6 +12,9 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+
+if __package__ is None or __package__ == "":
+    sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.data_utils import KAGGLE_DATASET_URL, load_dataset
 
@@ -23,6 +27,9 @@ METRICS_PATH = ARTIFACTS_DIR / "metrics.json"
 FEATURES_PATH = ARTIFACTS_DIR / "feature_importance.csv"
 FORECAST_BASE_PATH = ARTIFACTS_DIR / "forecast_base.csv"
 TEST_PREDICTIONS_PATH = ARTIFACTS_DIR / "test_predictions.csv"
+CITY_SUMMARY_PATH = ARTIFACTS_DIR / "city_summary.csv"
+MONTHLY_SUMMARY_PATH = ARTIFACTS_DIR / "monthly_summary.csv"
+CORRELATION_PATH = ARTIFACTS_DIR / "correlation_matrix.csv"
 
 FEATURE_COLUMNS = [
     "City",
@@ -125,22 +132,74 @@ def train_and_save(force: bool = False) -> dict:
 
     train_predictions = pipeline.predict(train_df[FEATURE_COLUMNS])
     test_predictions = pipeline.predict(test_df[FEATURE_COLUMNS])
+    baseline_predictions = test_df["temp_lag_1"].to_numpy()
 
     train_r2 = r2_score(train_df[TARGET_COLUMN], train_predictions)
     test_r2 = r2_score(test_df[TARGET_COLUMN], test_predictions)
     mae = mean_absolute_error(test_df[TARGET_COLUMN], test_predictions)
     rmse = mean_squared_error(test_df[TARGET_COLUMN], test_predictions) ** 0.5
+    baseline_mae = mean_absolute_error(test_df[TARGET_COLUMN], baseline_predictions)
+    baseline_rmse = mean_squared_error(test_df[TARGET_COLUMN], baseline_predictions) ** 0.5
 
     prediction_frame = test_df[["Date", "City", "State", TARGET_COLUMN]].copy()
     prediction_frame["predicted_temp"] = test_predictions
     prediction_frame["residual"] = prediction_frame[TARGET_COLUMN] - prediction_frame["predicted_temp"]
     prediction_frame.to_csv(TEST_PREDICTIONS_PATH, index=False)
 
-    feature_table = pd.DataFrame({"feature": FEATURE_COLUMNS})
+    preprocessor = pipeline.named_steps["preprocessor"]
+    feature_names = preprocessor.get_feature_names_out()
+    importances = pipeline.named_steps["model"].feature_importances_
+    feature_table = (
+        pd.DataFrame({"feature": feature_names, "importance": importances})
+        .sort_values("importance", ascending=False)
+        .reset_index(drop=True)
+    )
     feature_table.to_csv(FEATURES_PATH, index=False)
 
     latest_rows = raw_df.sort_values("Date").groupby("City", as_index=False).tail(7)
     latest_rows.to_csv(FORECAST_BASE_PATH, index=False)
+
+    city_summary = (
+        raw_df.groupby(["City", "State"], as_index=False)
+        .agg(
+            avg_temperature=("Temperature_Avg_C", "mean"),
+            max_temperature=("Temperature_Max_C", "max"),
+            total_rainfall=("Rainfall_mm", "sum"),
+            avg_humidity=("Humidity_pct", "mean"),
+            avg_aqi=("AQI", "mean"),
+        )
+        .sort_values("avg_temperature", ascending=False)
+    )
+    city_summary.to_csv(CITY_SUMMARY_PATH, index=False)
+
+    monthly_summary = (
+        raw_df.assign(
+            month_number=raw_df["Date"].dt.month,
+            month_name=raw_df["Date"].dt.strftime("%b"),
+        )
+        .groupby(["month_number", "month_name"], as_index=False)
+        .agg(
+            avg_temperature=("Temperature_Avg_C", "mean"),
+            avg_rainfall=("Rainfall_mm", "mean"),
+            avg_humidity=("Humidity_pct", "mean"),
+            avg_aqi=("AQI", "mean"),
+        )
+        .sort_values("month_number")
+    )
+    monthly_summary.to_csv(MONTHLY_SUMMARY_PATH, index=False)
+
+    correlation_matrix = raw_df[
+        [
+            "Temperature_Avg_C",
+            "Humidity_pct",
+            "Rainfall_mm",
+            "Wind_Speed_kmh",
+            "AQI",
+            "Pressure_hPa",
+            "Cloud_Cover_pct",
+        ]
+    ].corr(numeric_only=True)
+    correlation_matrix.to_csv(CORRELATION_PATH)
 
     joblib.dump(pipeline, MODEL_PATH)
 
@@ -157,13 +216,24 @@ def train_and_save(force: bool = False) -> dict:
         "test_r2": round(float(test_r2), 4),
         "mae": round(float(mae), 4),
         "rmse": round(float(rmse), 4),
+        "baseline_mae": round(float(baseline_mae), 4),
+        "baseline_rmse": round(float(baseline_rmse), 4),
     }
     METRICS_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     return metrics
 
 
 def ensure_artifacts(force: bool = False) -> dict:
-    needed = [MODEL_PATH, METRICS_PATH, FEATURES_PATH, FORECAST_BASE_PATH, TEST_PREDICTIONS_PATH]
+    needed = [
+        MODEL_PATH,
+        METRICS_PATH,
+        FEATURES_PATH,
+        FORECAST_BASE_PATH,
+        TEST_PREDICTIONS_PATH,
+        CITY_SUMMARY_PATH,
+        MONTHLY_SUMMARY_PATH,
+        CORRELATION_PATH,
+    ]
     if force or any(not path.exists() for path in needed):
         return train_and_save(force=True)
     return json.loads(METRICS_PATH.read_text(encoding="utf-8"))

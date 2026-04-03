@@ -1,18 +1,36 @@
-feature
-City
-State
-month
-day_of_year
-day_of_week
-is_weekend
-temp_lag_1
-temp_lag_2
-temp_lag_3
-temp_lag_7
-temp_roll_3
-temp_roll_7
-humidity_lag_1
-rainfall_lag_1
-aqi_lag_1
-pressure_lag_1
-cloud_lag_1
+feature,importance
+numeric__cloud_lag_1,0.08893374003317775
+numeric__humidity_lag_1,0.08658447415540417
+numeric__pressure_lag_1,0.0855553805202968
+numeric__temp_lag_7,0.079743866287513
+numeric__aqi_lag_1,0.07901505286447404
+numeric__temp_lag_2,0.07872728604345644
+numeric__temp_roll_7,0.07861196009543933
+numeric__temp_lag_3,0.07834020953319806
+numeric__temp_lag_1,0.07673236082190124
+numeric__day_of_year,0.07233720653174279
+numeric__temp_roll_3,0.06999436875843668
+numeric__rainfall_lag_1,0.041000192432084914
+numeric__day_of_week,0.030665860180936203
+numeric__month,0.009739747590451571
+numeric__is_weekend,0.0033998361867093652
+categorical__City_Ahmedabad,0.002600286125383098
+categorical__City_Jaipur,0.0025159971712871206
+categorical__State_Gujarat,0.0023940807411430083
+categorical__City_Hyderabad,0.002358324417214151
+categorical__State_Uttar Pradesh,0.0022656466904771217
+categorical__State_Rajasthan,0.002239489608527832
+categorical__City_Delhi,0.0021896562354048786
+categorical__City_Lucknow,0.002174970355998699
+categorical__State_Maharashtra,0.0021150295959931
+categorical__City_Bengaluru,0.00202661030879455
+categorical__City_Mumbai,0.0019423067063443552
+categorical__State_Karnataka,0.0019030516396609186
+categorical__State_West Bengal,0.0018580623742718017
+categorical__City_Bhopal,0.0018082865206027257
+categorical__City_Chennai,0.0017756533929507146
+categorical__State_Telangana,0.001748703463661769
+categorical__State_Delhi,0.0017401781175100661
+categorical__State_Madhya Pradesh,0.0016978231612373653
+categorical__City_Kolkata,0.0016845701699784905
+categorical__State_Tamil Nadu,0.0015797311683359138
